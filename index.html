@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aproximaciones</title>
+  <meta name="description" content="Calcula tus series de aproximación de powerlifting según tu 1RM y el RPE.">
+  <meta name="theme-color" content="#111418">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Aproximaciones">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Aproximaciones</h1>
+  </header>
+
+  <main>
+    <section id="view-calc" class="view">
+      <div class="seg" role="group" aria-label="Movimiento">
+        <button type="button" data-lift="squat">Sentadilla</button>
+        <button type="button" data-lift="bench">Banca</button>
+        <button type="button" data-lift="deadlift">Peso muerto</button>
+      </div>
+      <div id="orm-badge" class="badge"></div>
+
+      <div class="inputs">
+        <label class="field">
+          <span>Carga objetivo</span>
+          <span class="unit"><input id="in-load" type="number" inputmode="decimal" step="2.5" min="0" placeholder="0"> kg</span>
+        </label>
+        <label class="field">
+          <span>Reps</span>
+          <input id="in-reps" type="number" inputmode="numeric" step="1" min="1" max="30" placeholder="0">
+        </label>
+      </div>
+      <div class="lbl">RPE planeado</div>
+      <div class="chips" id="rpe-plan"></div>
+
+      <div id="result"></div>
+    </section>
+
+    <section id="view-history" class="view" hidden>
+      <h2 class="section">Historial</h2>
+      <div id="history"></div>
+    </section>
+
+    <section id="view-orm" class="view" hidden>
+      <h2 class="section">Tus 1RM</h2>
+      <div id="orm"></div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-view="calc">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h2v4H3zM6 7h2v10H6zM9 11h6v2H9zM16 7h2v10h-2zM19 10h2v4h-2z"/></svg>
+      Calcular
+    </button>
+    <button class="tab" role="tab" data-view="history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 0 8.95 10h-2.02A7 7 0 1 1 13 5zm-1 4v6l5 3 .9-1.5-3.9-2.3V7z"/></svg>
+      Historial
+    </button>
+    <button class="tab" role="tab" data-view="orm">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>
+      1RM
+    </button>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
