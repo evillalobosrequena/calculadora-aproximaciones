@@ -41,9 +41,13 @@ function xAt(p) {
     if (p >= pb) return a + (b - a) * (pa - p) / (pa - pb);
   }
 }
-const pct = (reps, rpe) => pctAt(reps + 10 - rpe) / 100;
-const estRPE = (load, reps, orm) => 10 - (xAt(load / orm * 100) - reps);
-const e1rmFrom = (load, reps, rpe) => load / pct(reps, rpe);
+/* Curva personal: k escala el eje de reps de la tabla RTS.
+   k > 1 → pierdes % más rápido por rep (menos reps a un % dado); k < 1 → más reps. */
+const pctK = (x, k = 1) => pctAt(1 + (x - 1) * k);
+const xAtK = (p, k = 1) => 1 + (xAt(p) - 1) / k;
+const pct = (reps, rpe, k = 1) => pctK(reps + 10 - rpe, k) / 100;
+const estRPE = (load, reps, orm, k = 1) => 10 - (xAtK(load / orm * 100, k) - reps);
+const e1rmFrom = (load, reps, rpe, k = 1) => load / pct(reps, rpe, k);
 const roundLoad = (w) => Math.round(w / STEP) * STEP;
 const half = (v) => Math.round(v * 2) / 2;
 const fmt = (v) => (Math.round(v * 10) / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 });
@@ -82,6 +86,27 @@ function alphaFor(reps, rpe) {
   if (rpe < 6.5) a *= 0.5;
   return a;
 }
+/* Ajuste de la curva: busca el k con el que todas tus series recientes
+   (en distintos rangos de reps) apuntan al mismo e1RM. Necesita al menos
+   4 series y una diferencia de 3+ reps efectivas entre ellas; si no, k = 1. */
+const K_MIN = 0.7, K_MAX = 1.4, K_PRIOR = 0.05; // freno hacia la tabla estándar; se divide entre nº de series
+function fitCurve(logs) {
+  const recent = logs.filter((l) => l.repsDone >= 1).slice(-30);
+  const xs = recent.map((l) => l.repsDone + 10 - l.rpe);
+  if (recent.length < 4 || Math.max(...xs) - Math.min(...xs) < 3) return { k: 1, learned: false };
+  const n = recent.length;
+  const w = recent.map((l, i) => Math.pow(0.93, n - 1 - i) * (l.rpe < 6.5 ? 0.5 : 1));
+  const sw = w.reduce((a, b) => a + b, 0);
+  let best = { k: 1, J: Infinity };
+  for (let k = K_MIN; k <= K_MAX + 1e-9; k += 0.01) {
+    const le = recent.map((l, i) => Math.log(l.load / (pctK(xs[i], k) / 100)));
+    const m = le.reduce((s, v, i) => s + w[i] * v, 0) / sw;
+    const J = le.reduce((s, v, i) => s + w[i] * (v - m) ** 2, 0) / sw + (K_PRIOR / n) * Math.log(k) ** 2;
+    if (J < best.J) best = { k, J };
+  }
+  return { k: Math.round(best.k * 100) / 100, learned: true };
+}
+
 function liftModel(lift) {
   const L = state.lifts[lift];
   if (!L || !L.orm) return null;
@@ -90,16 +115,26 @@ function liftModel(lift) {
   const logs = state.logs
     .filter((l) => l.lift === lift && l.ts >= L.since)
     .sort((a, b) => a.ts - b.ts);
+  const { k, learned } = fitCurve(logs);
   for (const l of logs) {
-    const pred = estRPE(l.load, l.repsDone, e);
-    const setE = e1rmFrom(l.load, l.repsDone, l.rpe);
+    const pred = estRPE(l.load, l.repsDone, e, k);
+    const setE = e1rmFrom(l.load, l.repsDone, l.rpe, k);
     const after = e + alphaFor(l.repsDone, l.rpe) * (setE - e);
     items.push({ log: l, before: e, pred, setE, after });
     e = after;
   }
   const recent = items.slice(-10);
   const bias = recent.length ? avg(recent.map((i) => i.log.rpe - i.pred)) : null;
-  return { tested: L.orm, e1rm: e, items, bias };
+  return { tested: L.orm, e1rm: e, items, bias, k, learned };
+}
+
+function curveText(m) {
+  if (!m.learned) return 'Curva: tabla RTS estándar. Se personaliza cuando registres series en rangos de reps distintos (p. ej. triples y series de 6–8).';
+  const std = xAt(80), mine = xAtK(80, m.k);
+  const verdict = m.k < 0.97 ? 'Aguantas más reps que la media.'
+    : m.k > 1.03 ? 'Aguantas menos reps que la media: eres más de pocas reps.'
+    : 'Coincides con la tabla.';
+  return `Curva personal: al 80% sacarías ~${fmt(half(mine))} reps al fallo (tabla: ${fmt(half(std))}). ${verdict}`;
 }
 
 /* ================= Aproximaciones ================= */
@@ -145,9 +180,9 @@ function buildPlan(lift, W, R, rpe, orm) {
   return sets;
 }
 
-function assess(W, R, rpe, orm) {
-  const est = estRPE(W, R, orm);
-  const target = roundLoad(orm * pct(R, rpe));
+function assess(W, R, rpe, orm, k = 1) {
+  const est = estRPE(W, R, orm, k);
+  const target = roundLoad(orm * pct(R, rpe, k));
   const diff = est - rpe;
   let kind, title, text;
   if (est > 10.25) {
@@ -221,7 +256,8 @@ function renderOrmBadge(model) {
   const changed = Math.abs(model.e1rm - model.tested) >= 0.5;
   el.innerHTML = `e1RM <b>${fmt(half(model.e1rm))} kg</b>` +
     (changed ? ` <span class="muted">· probado ${fmt(model.tested)} kg</span>` : '') +
-    (model.items.length ? ` <span class="muted">· ${model.items.length} ${model.items.length === 1 ? 'serie aprendida' : 'series aprendidas'}</span>` : '');
+    (model.items.length ? ` <span class="muted">· ${model.items.length} ${model.items.length === 1 ? 'serie aprendida' : 'series aprendidas'}</span>` : '') +
+    (model.learned ? ` <span class="muted">· curva personal</span>` : '');
 }
 
 function renderResult() {
@@ -237,7 +273,7 @@ function renderResult() {
     return;
   }
   const orm = model.e1rm;
-  const a = assess(W, R, s.rpe, orm);
+  const a = assess(W, R, s.rpe, orm, model.k);
   const plan = buildPlan(s.lift, W, R, s.rpe, orm);
   if (logDraft.repsDone == null) logDraft.repsDone = R;
 
@@ -322,7 +358,7 @@ function renderHistory() {
       const txt = Math.abs(b) < 0.25 ? 'Tus RPE coinciden con la tabla.'
         : b > 0 ? `Sueles sentir las series <b>${fmt(Math.abs(b))}</b> RPE más duras de lo que predecía.`
         : `Sueles sentir las series <b>${fmt(Math.abs(b))}</b> RPE más fáciles de lo que predecía.`;
-      summaries.push(`<li><b>${LIFTS[lift].name}</b>: e1RM ${fmt(half(m.e1rm))} kg. ${txt}</li>`);
+      summaries.push(`<li><b>${LIFTS[lift].name}</b>: e1RM ${fmt(half(m.e1rm))} kg. ${txt}<br><span class="muted">${curveText(m)}</span></li>`);
     }
   }
   const logs = [...state.logs].sort((a, b) => b.ts - a.ts);
@@ -356,7 +392,8 @@ function renderOrm() {
       <label class="row"><span><b>${cfg.name}</b></span>
         <span class="unit"><input type="number" inputmode="decimal" step="2.5" min="0" data-orm="${k}" value="${L.orm ?? ''}" placeholder="—"> kg</span>
       </label>
-      ${m ? `<div class="muted small">${L.since ? 'Desde ' + new Date(L.since).toLocaleDateString('es-ES') : ''}${learned ? ` · aprendido: <b>${fmt(half(m.e1rm))} kg</b>` : ''}</div>` : ''}
+      ${m ? `<div class="muted small">${L.since ? 'Desde ' + new Date(L.since).toLocaleDateString('es-ES') : ''}${learned ? ` · aprendido: <b>${fmt(half(m.e1rm))} kg</b>` : ''}</div>
+      <div class="muted small curve">${curveText(m)}</div>` : ''}
       ${learned && roundLoad(m.e1rm) !== L.orm ? `<button class="link" data-adopt="${k}">Usar ${fmt(roundLoad(m.e1rm))} kg como nuevo 1RM</button>` : ''}
     </div>`;
   }).join('') + `

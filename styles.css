@@ -133,6 +133,7 @@ main { padding: 8px 16px 24px; max-width: 560px; margin: 0 auto; }
 /* 1RM */
 .orm-card .unit input { font-size: 22px; width: 96px; text-align: right; }
 .orm-card .unit { justify-content: flex-end; }
+.curve { margin-top: 6px; }
 .btns { display: flex; gap: 8px; }
 .btns button, .btn-file { flex: 1; text-align: center; border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; }
 
