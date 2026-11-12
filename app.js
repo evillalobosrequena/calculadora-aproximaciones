@@ -9,7 +9,7 @@ const LIFTS = {
   bench:    { name: 'Press banca', short: 'BP', start: BAR, barSet: true },
   deadlift: { name: 'Peso muerto', short: 'DL', start: 60,  barSet: false },
 };
-const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+const RPE_OPTIONS = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 /* Tabla RPE (RTS): % del 1RM a RPE 10 según repeticiones.
    Se indexa por "reps efectivas" = reps + reps en reserva (10 - RPE). */
@@ -19,7 +19,7 @@ const RPE10 = [
   [7, 81.1], [7.5, 79.9], [8, 78.6], [8.5, 77.4], [9, 76.2], [9.5, 75.1],
   [10, 73.9], [10.5, 72.3], [11, 70.7], [11.5, 69.4], [12, 68.0],
 ];
-const TAIL = 1.6; // % que se pierde por rep extra más allá de 12
+const TAIL = 2.7; // % que se pierde por rep extra más allá de 12 (misma pendiente que el final de la tabla RTS)
 const HEAD = 4.4; // % por "rep" por encima de 1 (RPE > 10)
 
 /* ================= Modelo RPE ================= */
