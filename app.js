@@ -138,6 +138,9 @@ function curveText(m) {
 }
 
 /* ================= Aproximaciones ================= */
+// Descanso tras una serie según su % del 1RM
+const restFor = (p) => p < 0.6 ? '1–2 min' : p < 0.75 ? '2 min' : p < 0.85 ? '2–3 min' : p < 0.9 ? '3–4 min' : '4–5 min';
+
 function buildPlan(lift, W, R, rpe, orm) {
   /* 5–6 aproximaciones con saltos decrecientes (progresión geométrica): el
      último salto (a la serie objetivo) es el más pequeño, y es más pequeño
@@ -195,7 +198,7 @@ function buildPlan(lift, W, R, rpe, orm) {
       else if (q >= 0.7) s.reps = Math.min(s.reps, 3);
     }
     s.pct = p;
-    s.rest = p < 0.6 ? '1 min' : p < 0.75 ? '1–2 min' : p < 0.85 ? '2 min' : '2–3 min';
+    s.rest = restFor(p);
   }
   return sets;
 }
@@ -321,6 +324,7 @@ function renderResult() {
     <div class="card target">
       <div class="t-label">Serie objetivo</div>
       <div class="t-main">${fmt(W)} kg × ${R} <span class="muted">@ RPE ${fmt(s.rpe)}</span></div>
+      ${plan.length ? `<div class="t-rest">Descansa <b>${restFor(Math.max(W / orm, plan[plan.length - 1].pct))}</b> antes de esta serie</div>` : ''}
     </div>
 
     <div class="card log">

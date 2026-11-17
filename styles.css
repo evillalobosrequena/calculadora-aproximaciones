@@ -108,6 +108,8 @@ main { padding: 8px 16px 24px; max-width: 560px; margin: 0 auto; }
 .t-label { font-size: 13px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
 .t-main { font-size: 24px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .t-main .muted { font-size: 16px; font-weight: 600; }
+.t-rest { margin-top: 6px; font-size: 14px; color: var(--muted); }
+.t-rest b { color: var(--text); }
 
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .stepper { display: flex; align-items: center; gap: 4px; }

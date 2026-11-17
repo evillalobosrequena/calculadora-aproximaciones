@@ -1,4 +1,4 @@
-const CACHE = 'aprox-v6';
+const CACHE = 'aprox-v7';
 const ASSETS = [
   './',
   './index.html',
