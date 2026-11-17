@@ -139,10 +139,9 @@ function curveText(m) {
 
 /* ================= Aproximaciones ================= */
 function buildPlan(lift, W, R, rpe, orm) {
-  /* Saltos decrecientes (progresión geométrica): cada salto es un 75% del
-     anterior, y el último salto (a la serie objetivo) es el más pequeño.
-     Cuanto más pesada la serie respecto al 1RM, más pequeño ese último salto,
-     y por tanto más aproximaciones. */
+  /* 5–6 aproximaciones con saltos decrecientes (progresión geométrica): el
+     último salto (a la serie objetivo) es el más pequeño, y es más pequeño
+     cuanto más pesada sea la serie respecto al 1RM. */
   const cfg = LIFTS[lift];
   const rel = W / orm;
   const RATIO = 0.75;
@@ -158,17 +157,24 @@ function buildPlan(lift, W, R, rpe, orm) {
   if (cfg.barSet) sets.push({ load: BAR, reps: 10, bar: true });
 
   if (G >= 5) {
-    // nº de saltos: el mínimo con el que el último salto ya es <= dFinal
-    let n = 1, d1 = G;
-    for (; n < 9; n++) {
-      d1 = G * (1 - RATIO) / (1 - Math.pow(RATIO, n));
-      if (d1 * Math.pow(RATIO, n - 1) <= dFinal) break;
+    // Siempre 5 aproximaciones (6 si la serie es pesada), contando la barra.
+    const total = rel >= 0.85 || rpe >= 9.5 ? 6 : 5;
+    const n = Math.max(1, Math.min(total - (cfg.barSet ? 1 : 0), Math.floor(G / 5))); // con cargas muy ligeras no se rellenan series con saltos < 5 kg
+    // Ratio entre saltos para que el último salto sea ~dFinal (acotado 0,6–0,85)
+    const sumFactor = (r) => { let s = 0; for (let i = 0; i < n; i++) s += Math.pow(r, -i); return s; };
+    let lo = 0.6, hi = 0.85, r = RATIO;
+    if (n > 1) {
+      if (dFinal * sumFactor(lo) <= G) r = lo;
+      else if (dFinal * sumFactor(hi) >= G) r = hi;
+      else {
+        for (let it = 0; it < 40; it++) { r = (lo + hi) / 2; if (dFinal * sumFactor(r) > G) lo = r; else hi = r; }
+      }
     }
-    d1 = G * (1 - RATIO) / (1 - Math.pow(RATIO, n));
+    const d1 = G * (1 - r) / (1 - Math.pow(r, n));
     // redondeo de los saltos a 2,5 kg desde arriba, sin que ninguno supere al anterior
     const jumps = new Array(n);
     for (let i = n - 1; i >= 0; i--) {
-      const j = Math.max(STEP, roundLoad(d1 * Math.pow(RATIO, i)));
+      const j = Math.max(STEP, roundLoad(d1 * Math.pow(r, i)));
       jumps[i] = i === n - 1 ? j : Math.max(j, jumps[i + 1]);
     }
     const loads = [];
