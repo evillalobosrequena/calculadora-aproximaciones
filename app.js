@@ -139,32 +139,43 @@ function curveText(m) {
 
 /* ================= Aproximaciones ================= */
 function buildPlan(lift, W, R, rpe, orm) {
+  /* Saltos decrecientes (progresión geométrica): cada salto es un 75% del
+     anterior, y el último salto (a la serie objetivo) es el más pequeño.
+     Cuanto más pesada la serie respecto al 1RM, más pequeño ese último salto,
+     y por tanto más aproximaciones. */
   const cfg = LIFTS[lift];
   const rel = W / orm;
-  let n = rel < 0.6 ? 2 : rel < 0.7 ? 3 : rel < 0.8 ? 4 : rel < 0.87 ? 5 : rel < 0.93 ? 6 : 7;
-  if (rpe >= 9.5) n += 1;
-  else if (rpe <= 7 && n > 2) n -= 1;
-  const topFrac = rel < 0.7 ? 0.8 : rel < 0.8 ? 0.85 : rel < 0.87 ? 0.88 : rel < 0.93 ? 0.91 : 0.93;
-  const top = W * topFrac;
-  const minJump = 5;
-  const start = Math.max(cfg.start + (cfg.barSet ? 10 : 0), W * 0.4);
+  const RATIO = 0.75;
+  let finalFrac = rel >= 0.93 ? 0.04 : rel >= 0.87 ? 0.05 : rel >= 0.8 ? 0.065 : rel >= 0.7 ? 0.08 : rel >= 0.6 ? 0.12 : 0.18;
+  if (rpe >= 9.5) finalFrac *= 0.85;
+  else if (rpe <= 7) finalFrac *= 1.15;
+  const dFinal = Math.max(STEP, W * finalFrac);
+  const floor = cfg.start + (cfg.barSet ? 10 : 0); // primera serie con discos
+  const start = Math.max(floor, W * 0.4);
+  const G = W - start;
 
   const sets = [];
   if (cfg.barSet) sets.push({ load: BAR, reps: 10, bar: true });
 
-  if (top - start >= 0) {
-    const maxN = Math.max(1, Math.floor((top - start) / minJump) + 1);
-    const minN = Math.ceil((top - start) / (0.15 * orm)) + 1; // saltos de como mucho ~15% del 1RM
-    n = Math.min(Math.max(n, minN), maxN);
-    for (let i = 0; i < n; i++) {
-      const x = n === 1 ? 1 : i / (n - 1);
-      const g = 1 - Math.pow(1 - x, 1.5); // saltos grandes al principio, pequeños al final
-      const load = roundLoad(start + (top - start) * g);
-      const prev = sets.length ? sets[sets.length - 1].load : 0;
-      if (load >= W || load - prev < minJump) continue;
-      sets.push({ load });
+  if (G >= 5) {
+    // nº de saltos: el mínimo con el que el último salto ya es <= dFinal
+    let n = 1, d1 = G;
+    for (; n < 9; n++) {
+      d1 = G * (1 - RATIO) / (1 - Math.pow(RATIO, n));
+      if (d1 * Math.pow(RATIO, n - 1) <= dFinal) break;
     }
-  } else if (!cfg.barSet && W > cfg.start + minJump) {
+    d1 = G * (1 - RATIO) / (1 - Math.pow(RATIO, n));
+    // redondeo de los saltos a 2,5 kg desde arriba, sin que ninguno supere al anterior
+    const jumps = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      const j = Math.max(STEP, roundLoad(d1 * Math.pow(RATIO, i)));
+      jumps[i] = i === n - 1 ? j : Math.max(j, jumps[i + 1]);
+    }
+    const loads = [];
+    let L = W;
+    for (let i = n - 1; i >= 0; i--) { L -= jumps[i]; loads.unshift(L); }
+    for (const load of loads) if (load >= floor - 1e-9) sets.push({ load });
+  } else if (!cfg.barSet && W > cfg.start + 5) {
     sets.push({ load: roundLoad(cfg.start) });
   }
 
@@ -172,7 +183,10 @@ function buildPlan(lift, W, R, rpe, orm) {
     const p = s.load / orm;
     if (!s.bar) {
       s.reps = p < 0.5 ? 5 : p < 0.6 ? 4 : p < 0.7 ? 3 : p < 0.8 ? 2 : 1;
-      if (p >= 0.75) s.reps = Math.min(s.reps, R); // las pesadas nunca con más reps que la serie objetivo
+      const q = s.load / W; // cercanía a la carga objetivo
+      if (p >= 0.75 || q >= 0.85) s.reps = Math.min(s.reps, R); // las pesadas nunca con más reps que la serie objetivo
+      if (q >= 0.85) s.reps = Math.min(s.reps, 2);               // cerca del objetivo: solo para sentir el peso
+      else if (q >= 0.7) s.reps = Math.min(s.reps, 3);
     }
     s.pct = p;
     s.rest = p < 0.6 ? '1 min' : p < 0.75 ? '1–2 min' : p < 0.85 ? '2 min' : '2–3 min';
