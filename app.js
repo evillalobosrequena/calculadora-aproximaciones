@@ -1,7 +1,7 @@
 'use strict';
 
 /* ================= Constantes ================= */
-const APP_VERSION = 8; // igualar con CACHE en sw.js
+const APP_VERSION = 9; // igualar con CACHE en sw.js
 const STORE_KEY = 'aprox-v1';
 const BAR = 20;
 const STEP = 2.5;
@@ -235,6 +235,7 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let currentView = 'calc';
+let lastSig = '', lastKind = '';
 let done = new Set();
 let logDraft = { repsDone: null, rpe: null };
 
@@ -248,7 +249,11 @@ function toast(msg) {
 
 function showView(v) {
   currentView = v;
-  $$('.view').forEach((el) => el.hidden = el.id !== 'view-' + v);
+  $$('.view').forEach((el) => {
+    el.hidden = el.id !== 'view-' + v;
+    if (!el.hidden) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); }
+  });
+  if (v === 'calc') lastSig = ''; // al volver a Calcular, la lista entra animada
   $$('.tab').forEach((el) => el.setAttribute('aria-selected', el.dataset.view === v));
   if (v === 'calc') renderCalc();
   if (v === 'history') renderHistory();
@@ -265,6 +270,7 @@ function rpeChips(name, selected) {
 function renderCalc() {
   const s = state.last;
   $$('.seg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lift === s.lift));
+  $('.seg').style.setProperty('--idx', Object.keys(LIFTS).indexOf(s.lift));
   $('#in-load').value = s.load;
   $('#in-reps').value = s.reps;
   $('#rpe-plan').innerHTML = rpeChips('plan', s.rpe);
@@ -301,8 +307,14 @@ function renderResult() {
   const plan = buildPlan(s.lift, W, R, s.rpe, orm);
   if (logDraft.repsDone == null) logDraft.repsDone = R;
 
+  // animar solo cuando cambia el plan (no en cada repintado)
+  const sig = `${s.lift}|${plan.map((p) => p.load + 'x' + p.reps).join(',')}|${W}x${R}`;
+  const animate = sig !== lastSig;
+  const verdictChanged = a.kind !== lastKind;
+  lastSig = sig; lastKind = a.kind;
+
   const rows = plan.map((st, i) => `
-    <li class="set${done.has(i) ? ' done' : ''}" data-i="${i}">
+    <li class="set${done.has(i) ? ' done' : ''}${animate ? ' in' : ''}" style="--i:${i}" data-i="${i}">
       <span class="idx">${i + 1}</span>
       <span class="load">${fmt(st.load)}<small> kg</small></span>
       <span class="reps">× ${st.reps}</span>
@@ -312,7 +324,7 @@ function renderResult() {
   const lastLoad = plan.length ? plan[plan.length - 1].load : null;
 
   out.innerHTML = `
-    <div class="card verdict ${a.kind}">
+    <div class="card verdict ${a.kind}${verdictChanged ? ' pop' : ''}">
       <div class="v-title">${a.title}</div>
       <div class="v-text">${a.text}</div>
       <div class="v-meta">${Math.round(W / orm * 100)}% del e1RM · ${R} rep${R > 1 ? 's' : ''} @ RPE ${fmt(s.rpe)}</div>
@@ -322,7 +334,7 @@ function renderResult() {
     ${plan.length ? `<ol class="sets">${rows}</ol>` : `<p class="hint">Carga ligera: con un par de series suaves basta.</p>`}
     ${lastLoad ? `<p class="hint small">Toca una serie para marcarla como hecha. Ninguna aproximación debe cansarte.</p>` : ''}
 
-    <div class="card target">
+    <div class="card target${animate ? ' in' : ''}" style="--i:${plan.length}">
       <div class="t-label">Serie objetivo</div>
       <div class="t-main">${fmt(W)} kg × ${R} <span class="muted">@ RPE ${fmt(s.rpe)}</span></div>
       ${plan.length ? `<div class="t-rest">Descansa <b>${restFor(Math.max(W / orm, plan[plan.length - 1].pct))}</b> antes de esta serie</div>` : ''}
@@ -367,7 +379,23 @@ function saveLog() {
   logDraft = { repsDone: null, rpe: null };
   done.clear();
   renderResult();
+  countUp($('#orm-badge b'), half(before.e1rm), half(after.e1rm));
+  vibrate(20);
 }
+
+function countUp(el, from, to) {
+  if (!el || reducedMotion() || from === to) return;
+  const t0 = performance.now(), dur = 700;
+  el.classList.add('flash');
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = `${fmt(half(from + (to - from) * e))} kg`;
+    if (k < 1) requestAnimationFrame(step); else el.classList.remove('flash');
+  };
+  requestAnimationFrame(step);
+}
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const vibrate = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* no soportado */ } };
 
 /* ---------- Historial ---------- */
 function renderHistory() {
@@ -444,6 +472,10 @@ function setOrm(lift, value) {
 /* ================= Eventos ================= */
 function bind() {
   $$('.tab').forEach((t) => t.addEventListener('click', () => showView(t.dataset.view)));
+  // al acabar la entrada, quita la clase para que no bloquee otras animaciones (pulsar, etc.)
+  document.addEventListener('animationend', (e) => {
+    e.target.classList.remove('in', 'pop', 'enter');
+  });
 
   $('.seg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-lift]');
@@ -479,7 +511,9 @@ function bind() {
     if (set) {
       const i = +set.dataset.i;
       done.has(i) ? done.delete(i) : done.add(i);
+      set.classList.remove('in');
       set.classList.toggle('done');
+      if (done.has(i)) vibrate(10);
       return;
     }
     const rd = e.target.closest('[data-rd]');
