@@ -1,4 +1,4 @@
-const CACHE = 'aprox-v7';
+const CACHE = 'aprox-v8'; // igualar con APP_VERSION en app.js
 const ASSETS = [
   './',
   './index.html',
@@ -26,8 +26,12 @@ self.addEventListener('activate', (e) => {
 // Red primero (siempre la última versión si hay conexión), caché si no la hay.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  // 'no-cache' obliga a revalidar con el servidor y saltarse la caché HTTP (GitHub Pages: 10 min)
+  const fresh = e.request.mode === 'navigate'
+    ? fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : fetch(e.request, { cache: 'no-cache' });
   e.respondWith(
-    fetch(e.request)
+    fresh
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();

@@ -1,6 +1,7 @@
 'use strict';
 
 /* ================= Constantes ================= */
+const APP_VERSION = 8; // igualar con CACHE en sw.js
 const STORE_KEY = 'aprox-v1';
 const BAR = 20;
 const STEP = 2.5;
@@ -428,7 +429,8 @@ function renderOrm() {
         <button type="button" id="btn-export">Exportar</button>
         <label class="btn-file">Importar<input type="file" id="in-import" accept="application/json" hidden></label>
       </div>
-    </div>`;
+    </div>
+    <p class="hint small version">Versión ${APP_VERSION}</p>`;
 }
 
 function setOrm(lift, value) {
@@ -541,5 +543,16 @@ bind();
 showView(Object.values(state.lifts).some((l) => l.orm) ? 'calc' : 'orm');
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+    // al volver a la app desde segundo plano, comprueba si hay versión nueva
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  // cuando se activa una versión nueva, recarga una vez para usarla
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !reloaded) { reloaded = true; location.reload(); }
+  });
 }
