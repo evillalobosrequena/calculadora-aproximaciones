@@ -1,4 +1,4 @@
-const CACHE = 'aprox-v9'; // igualar con APP_VERSION en app.js
+const CACHE = 'aprox-v10'; // igualar con APP_VERSION en app.js
 const ASSETS = [
   './',
   './index.html',

@@ -1,7 +1,7 @@
 'use strict';
 
 /* ================= Constantes ================= */
-const APP_VERSION = 9; // igualar con CACHE en sw.js
+const APP_VERSION = 10; // igualar con CACHE en sw.js
 const STORE_KEY = 'aprox-v1';
 const BAR = 20;
 const STEP = 2.5;
@@ -380,7 +380,6 @@ function saveLog() {
   done.clear();
   renderResult();
   countUp($('#orm-badge b'), half(before.e1rm), half(after.e1rm));
-  vibrate(20);
 }
 
 function countUp(el, from, to) {
@@ -395,8 +394,6 @@ function countUp(el, from, to) {
   requestAnimationFrame(step);
 }
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const vibrate = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* no soportado */ } };
-
 /* ---------- Historial ---------- */
 function renderHistory() {
   const out = $('#history');
@@ -512,9 +509,7 @@ function bind() {
       const i = +set.dataset.i;
       done.has(i) ? done.delete(i) : done.add(i);
       set.classList.remove('in');
-      set.classList.toggle('done');
-      if (done.has(i)) vibrate(10);
-      return;
+      set.classList.toggle('done');      return;
     }
     const rd = e.target.closest('[data-rd]');
     if (rd) {
